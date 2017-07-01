@@ -1,90 +1,120 @@
 ## Vinber ##
 
-Vinber works for Rails, provides other way enumeration style which without force format output and force method definations.
+ Enumeration with I18N solution for Rails, which without force output formatting and force method defining.
 
-__NOTE__: Vinber current version *require* Ruby v1.9.0 or later and just tested on Rails 4.x for now .
+__NOTE__: vinber works fine with Rails 4.x or later.
 
 
 ### Installation ###
-    # Installing as Ruby gem
+    # Manually from RubyGems.org
     $ gem install vinber
 
-    # Or in gemfile
+    # Or Gemfile if you are using Bundler
     $ gem vinber
 
 ### Usage ###
-
-#### vinber
-You will be able to use `vinber` in any model which inherit `ActiveRecord::Base`.
-```ruby
-vinber attribute: {} # hash
-vinber attribute: [] # array
-```
-
-### vinber_list
-`vinber_list` return a nested Array, it besides the attribute I18n value and vinber key.
-```ruby
-vinber_list class_object, attribute
-```
-
-### vinber_value
-`vinber_value` return the I18n value of specific attribute.
+To use vinber is as simple as defining table attribute in its Model, and using Hash or Array are supported:
 
 ```ruby
-vinber_value instance_object, attribute
-```
+# app/models/user.rb
+# User(id: integer, name: string, :status: integer, language: string)
+class User < ActiveRecord::Base
 
-### Examples ###
-Step 1, you need define your vinbers in your model.
+  vinber :status => {:registered => 1, :active => 2, :locked => 3}
 
-```ruby
-# app/models/your_models.rb
-class YourModel < ActiveRecord::Base
-  ...
-
-  vinber :status => {:submited => 1, :processing => 2, :completed => 3}
-
-  ...
 end
 ```
 
-Step 2, set your locale for I18n.
+This provides you with a couple of public methods for class  `User` and its instances:
+
+```ruby
+User.defined_vinbers             # => {'status' => {:registered => 1, :active => 2, :locked => 3}}
+User.vinber_defined?             # => true
+User.vinber_defined?(:status)    # => true
+User.vinber_defined?(:language)  # => false
+User.vinbers.status              # => {:registered => 1, :active => 2, :locked => 3}
+User.vinber_list(:status)        # => [['Registered', 1], ['Active', 2], ['Locked', 3]]
+
+# We assume there are a lot of records in User Table
+User.first.status                # => 2
+User.first.vinber_value(:status) # => 'Active'
+
+# if the attribute not defined by vinber, vinber_value return the real value
+User.vinber_defined?(:id)        # => false
+User.first.vinber_value(:id)     # => 1
+```
+
+### i18n ###
+You will be able to use i18n of vinber when you defines attribute with `Hash`, as default, vinber always try to find the translation from current local yaml file. if not found, vinber will fetch the attribute and return the right hash key string.
+
+```ruby
+User.first.status                # => 2
+User.first.vinber_value(:status) # => 'Active'
+User.vinber_list(:status)        # => [['Registered', 1], ['Active', 2], ['Locked', 3]]
+```
+Setting locale like below format:
+
 ```yaml
 # config/locales/zh.yml or en.yml(any yml your want)
 zh:
   vinber:
-    YourModel:
-      status_submited: 提交
-      status_processing: 进行中
-      status_completed: 完成
+    User:
+      status_registered: 已注册
+      status_active: 已激活
+      status_locked: 锁定中
 
 ```
 
-Step 3, invoking in view !! We assume you has YourModel and it contains records, the status of first record is `2`.
+If current locale is `zh`, you will see:
 
-```haml
-# app/views/your_modles/index.haml
-- obj = YourModel.first
-%p= vinber_value(obj, :status)
+```ruby
+User.first.vinber_value(:status) # => '已激活'
+User.vinber_list(:status)        # => [['已注册', 1], ['已激活', 2], ['锁定中', 3]]
+```
 
-# => <p>进行中</p>
+Alternative, if you don't want it to be translated, just use `:t => false`, this will be useful when you writing api program, you don't want different locals to change the result.
 
-= form_tag({}) do
-  = select_tag "status", options_for_select(vinber_list YourModel, :status)
+```ruby
+User.first.vinber_value(:status, :t => false) # => 'active'
+User.vinber_list(:status, :t => false)        # => [['registered', 1], ['active', 2], ['locked', 3]]
+```
 
-# =>  <form accept-charset="UTF-8" method="post">
-# =>    <select name="status" id="status">
-# =>      <option value="1">提交</option>
-# =>      <option value="2">进行中</option>
-# =>      <option value="3">完成</option>
-# =>    </select>
-# =>  </form>
+Sometimes, the array by  `vinber_list` is not what you expect, you could use block to customize:
+
+```ruby
+User.vinber_list(:status) do |key, value|
+  "#{key}: #{value}"
+end
+# => ["已注册: 1", "已激活: 2", "锁定中: 3"]
+
+User.vinber_list(:status, :t => false) do |key|
+  key.upcase
+end
+# => ["REGISTERED", "ACTIVE", "LOCKED"]
+```
+
+### Validates ###
+
+For database safety, vinber provides validates to check security of value when saving, but it's disabled by default, you can enable with option `:validates => true`.
+
+```ruby
+class User < ActiveRecord::Base
+
+  vinber :status => {:registered => 1, :active => 2, :locked => 3}, :validates => true
+
+end
+
+user = User.new(
+  :name => 'Charles',
+  :status => 4    # status is 4, expected in [1, 2, 3]
+)
+user.save            # false
+user.errors.messages # {:status => ["is not included in the list"]}
 ```
 
 ### TODO ###
-- Write more clear document
-- Add soft warning when error
-- more functions
+- Improve compatibility
+- Make it easy to ActiveRecord Query
 
 ### License ###
 Released under the [MIT](http://opensource.org/licenses/MIT) license. See LICENSE file for details.

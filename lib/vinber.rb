@@ -18,7 +18,10 @@ module Vinber
   end
 
   def vinber(definitions)
+    need_validates = definitions.delete(:validates)
     definitions.each do |name, values|
+      detect_vinber_conflict! name
+      validates_from_vinber name, values if need_validates
       defined_vinbers[name.to_s] = case
       when values.is_a?(Hash)
         values.with_indifferent_access
@@ -37,16 +40,38 @@ module Vinber
   def vinber_defined?(attr_key = nil)
     attr_key ? defined_vinbers.has_key?(attr_key.to_s) : defined_vinbers.present?
   end
+
+  private
+
+  VINBER_CONFLICT_MESSAGE = \
+    "You tried to define a vinber named %{name} in %{klass}, but it's already defined by %{source}."
+
+  def detect_vinber_conflict!(name)
+    if vinber_defined?(name)
+      raise_vinber_conflict_error(name, 'Vinber')
+    elsif defined_enums[name.to_s]
+      raise_vinber_conflict_error(name, 'Enum')
+    end
+  end
+
+  def validates_from_vinber(name, val)
+    val = val.is_a?(Hash) ? val.values : Array.wrap(val).flatten
+    class_eval { validates name.to_sym, inclusion: {in: val} }
+  end
+
+  def raise_vinber_conflict_error(name, source)
+    raise ArgumentError, VINBER_CONFLICT_MESSAGE % {
+      name: name,
+      klass: self.name,
+      source: source
+    }
+  end
+
 end
 
-# Extend/Include to Rails
-ActiveRecord::Base.extend Vinber
-ActiveRecord::Base.extend Vinber::Value
-ActiveRecord::Base.send(:include, Vinber::Value)
-
-ApplicationHelper.extend Vinber::Value
-ApplicationHelper.send(:include, Vinber::Value)
-ApplicationHelper.send(:include, Vinber::List)
-
-ApplicationController.extend Vinber::Value
-ApplicationController.send(:include, Vinber::Value)
+# Extend/Include to ActiveRecord::Base
+ActiveRecord::Base.class_eval do
+  extend  Vinber
+  extend  Vinber::List
+  include Vinber::Value
+end

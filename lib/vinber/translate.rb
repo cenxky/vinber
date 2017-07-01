@@ -15,11 +15,11 @@ module Vinber
       @label ||= %()
     end
 
-    def to_s
-      I18n.t(VALUE_LABLE % label)
+    def text
+      @text ||= I18n.t (VALUE_LABLE % label), default: label[:key].to_s.humanize
     end
 
-    alias_method :text, :to_s
+    alias_method :to_s, :text
 
   end
 end
