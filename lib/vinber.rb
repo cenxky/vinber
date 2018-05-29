@@ -1,7 +1,7 @@
 require_relative 'vinber/version'
 require_relative 'vinber/translate'
-require_relative 'vinber/vinber_list'
-require_relative 'vinber/vinber_value'
+require_relative 'vinber/vinber_klass'
+require_relative 'vinber/vinber_instance'
 require_relative 'vinber/current_vinbers'
 
 module Vinber
@@ -19,9 +19,11 @@ module Vinber
 
   def vinber(definitions)
     need_validates = definitions.delete(:validates)
+    need_scope = definitions.delete(:scope)
     definitions.each do |name, values|
       detect_vinber_conflict! name
       validates_from_vinber name, values if need_validates
+      scope_from_vinber name, values if need_scope
       defined_vinbers[name.to_s] = case
       when values.is_a?(Hash)
         values.with_indifferent_access
@@ -59,6 +61,14 @@ module Vinber
     class_eval { validates name.to_sym, inclusion: {in: val} }
   end
 
+  def scope_from_vinber(name, val)
+    if val.is_a?(Hash)
+      val.each do |key, value|
+        class_eval { scope key, -> { where(name => value) } }
+      end
+    end
+  end
+
   def raise_vinber_conflict_error(name, source)
     raise ArgumentError, VINBER_CONFLICT_MESSAGE % {
       name: name,
@@ -72,6 +82,6 @@ end
 # Extend/Include to ActiveRecord::Base
 ActiveRecord::Base.class_eval do
   extend  Vinber
-  extend  Vinber::List
-  include Vinber::Value
+  extend  Vinber::Klass
+  include Vinber::Instance
 end
