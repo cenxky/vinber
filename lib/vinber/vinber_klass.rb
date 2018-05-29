@@ -24,8 +24,8 @@ module Vinber
       if key_or_value.is_a?(Symbol)
         key = key_or_value
       else
-        attribute_vinber = vinbers.defined_vinbers || {}
-        key = attribute_vinber.key key_or_value
+        attribute_vinber = defined_vinbers || {}
+        key = attribute_vinber[attribute.to_s].key key_or_value
       end
 
       Vinber::Translate.new(klass, attribute, key).to_s
